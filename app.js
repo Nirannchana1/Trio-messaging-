@@ -1,37 +1,77 @@
-// Import Express.js
-const express = require('express');
+const express = require("express");
 
-// Create an Express app
 const app = express();
 
-// Middleware to parse JSON bodies
 app.use(express.json());
 
-// Set port and verify_token
-const port = process.env.PORT || 3000;
-const verifyToken = process.env.VERIFY_TOKEN;
+const PORT = process.env.PORT || 3000;
 
-// Route for GET requests
-app.get('/', (req, res) => {
-  const { 'hub.mode': mode, 'hub.challenge': challenge, 'hub.verify_token': token } = req.query;
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 
-  if (mode === 'subscribe' && token === verifyToken) {
-    console.log('WEBHOOK VERIFIED');
-    res.status(200).send(challenge);
-  } else {
-    res.status(403).end();
-  }
+// Webhook verification
+app.get("/", (req, res) => {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+        console.log("WEBHOOK VERIFIED");
+        return res.status(200).send(challenge);
+    }
+
+    res.sendStatus(403);
 });
 
-// Route for POST requests
-app.post('/', (req, res) => {
-  const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
-  console.log(`\n\nWebhook received ${timestamp}\n`);
-  console.log(JSON.stringify(req.body, null, 2));
-  res.status(200).end();
+// Receive WhatsApp messages
+app.post("/", async (req, res) => {
+
+    console.log("Incoming webhook:");
+    console.log(JSON.stringify(req.body, null, 2));
+
+    try {
+
+        const message =
+            req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+
+        if (message) {
+
+            const from = message.from;
+
+            const phoneNumberId =
+                req.body.entry[0].changes[0].value.metadata.phone_number_id;
+
+            console.log("Message from:", from);
+
+            await fetch(
+                `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${ACCESS_TOKEN}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        messaging_product: "whatsapp",
+                        to: from,
+                        text: {
+                            body: "Hello! 👋 Welcome to Trio Technologies.\nHow can I help you today?"
+                        }
+                    })
+                }
+            );
+
+            console.log("Reply sent.");
+        }
+
+    } catch (err) {
+        console.error(err);
+    }
+
+    res.sendStatus(200);
+
 });
 
-// Start the server
-app.listen(port, () => {
-  console.log(`\nListening on port ${port}\n`);
+app.listen(PORT, () => {
+    console.log(`Listening on port ${PORT}`);
 });
