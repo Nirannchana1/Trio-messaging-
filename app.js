@@ -1,14 +1,32 @@
 const express = require("express");
 
 const app = express();
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 
-const PHONE_NUMBER_ID = "1197934803409131";
+
+// -------------------------
+// Validate Environment
+// -------------------------
+if (!VERIFY_TOKEN || !ACCESS_TOKEN || !PHONE_NUMBER_ID) {
+
+    console.error("❌ Missing environment variables");
+
+    console.error({
+        VERIFY_TOKEN: !!VERIFY_TOKEN,
+        ACCESS_TOKEN: !!ACCESS_TOKEN,
+        PHONE_NUMBER_ID: !!PHONE_NUMBER_ID
+    });
+
+    process.exit(1);
+}
+
 
 
 // -------------------------
@@ -16,24 +34,35 @@ const PHONE_NUMBER_ID = "1197934803409131";
 // -------------------------
 app.get("/", (req, res) => {
 
-    console.log("GET request received");
-    console.log(req.query);
+    console.log("Webhook verification request received");
 
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
+
+    console.log({
+        mode,
+        receivedToken: token ? "YES" : "NO",
+        challenge
+    });
+
+
     if (mode === "subscribe" && token === VERIFY_TOKEN) {
 
-        console.log("✅ WEBHOOK VERIFIED");
+        console.log("✅ Webhook verified successfully");
+
         return res.status(200).send(challenge);
 
     }
 
-    console.log("❌ Verification Failed");
+
+    console.log("❌ Webhook verification failed");
+
     return res.sendStatus(403);
 
 });
+
 
 
 // -------------------------
@@ -41,47 +70,52 @@ app.get("/", (req, res) => {
 // -------------------------
 app.post("/", async (req, res) => {
 
-    console.log("=================================");
-    console.log("Incoming Webhook");
-    console.log(JSON.stringify(req.body, null, 2));
-    console.log("=================================");
-
-
     try {
+
+        console.log(
+            "Incoming webhook:",
+            JSON.stringify(req.body)
+        );
+
 
         const value =
             req.body?.entry?.[0]?.changes?.[0]?.value;
 
 
-        const message = value?.messages?.[0];
+        // Ignore delivery/read/status events
+        if (!value?.messages?.length) {
 
+            console.log("No incoming message event");
 
-        // Ignore status updates
-        if (!message) {
-
-            console.log("No incoming message");
             return res.sendStatus(200);
 
         }
 
 
-        const from = message.from;
+        const message = value.messages[0];
+
+        const sender = message.from;
 
 
-        console.log("Message From:", from);
-        console.log("Using Phone Number ID:", PHONE_NUMBER_ID);
+        console.log("Message received from:", sender);
+
 
 
         const response = await fetch(
+
             `https://graph.facebook.com/v23.0/${PHONE_NUMBER_ID}/messages`,
+
             {
 
                 method: "POST",
 
                 headers: {
 
-                    Authorization: `Bearer ${ACCESS_TOKEN}`,
-                    "Content-Type": "application/json"
+                    "Authorization":
+                        `Bearer ${ACCESS_TOKEN}`,
+
+                    "Content-Type":
+                        "application/json"
 
                 },
 
@@ -92,52 +126,69 @@ app.post("/", async (req, res) => {
 
                     recipient_type: "individual",
 
-                    to: from,
+                    to: sender,
 
                     type: "text",
 
                     text: {
 
                         body:
-                        "Hello! 👋 Welcome to Trio Technologies.\n\nThank you for contacting us.\nHow can I help you today?"
+`Hello 👋 Welcome to Trio Technologies.
+
+Thank you for contacting us.
+
+How can I help you today?`
 
                     }
 
                 })
 
             }
+
         );
 
 
-        const data = await response.json();
 
+        const result = await response.json();
 
-        console.log("Meta Response:");
-        console.log(JSON.stringify(data, null, 2));
 
 
         if (!response.ok) {
 
-            console.error("❌ Failed to send reply");
+            console.error(
+                "❌ WhatsApp API Error:",
+                result
+            );
 
-        } else {
+        }
+        else {
 
-            console.log("✅ Reply sent successfully");
+            console.log(
+                "✅ Reply sent:",
+                result
+            );
 
         }
 
 
-    } catch(error) {
 
-        console.error("ERROR:");
-        console.error(error);
+    }
+
+    catch(error) {
+
+        console.error(
+            "Webhook processing error:",
+            error
+        );
 
     }
 
 
+    // Always acknowledge webhook
     return res.sendStatus(200);
 
 });
+
 
 
 
@@ -146,35 +197,48 @@ app.post("/", async (req, res) => {
 // -------------------------
 app.get("/health", (req,res)=>{
 
-    res.status(200).send("Server is running");
+    res.status(200).json({
+
+        status:"UP",
+
+        service:"trio-messaging",
+
+        timestamp:new Date().toISOString()
+
+    });
 
 });
+
 
 
 
 // -------------------------
 // Start Server
 // -------------------------
-app.listen(PORT,()=>{
+app.listen(PORT, ()=>{
 
-    console.log("=================================");
-    console.log(`Server running on port ${PORT}`);
 
-    console.log(
-        "VERIFY_TOKEN:",
-        VERIFY_TOKEN ? "LOADED" : "MISSING"
-    );
+    console.log("--------------------------------");
 
     console.log(
-        "ACCESS_TOKEN:",
-        ACCESS_TOKEN ? "LOADED" : "MISSING"
+        `Server running on port ${PORT}`
     );
 
-    console.log(
-        "PHONE_NUMBER_ID:",
-        PHONE_NUMBER_ID
-    );
 
-    console.log("=================================");
+    console.log({
+
+        VERIFY_TOKEN:
+            VERIFY_TOKEN ? "Loaded" : "Missing",
+
+        ACCESS_TOKEN:
+            ACCESS_TOKEN ? "Loaded" : "Missing",
+
+        PHONE_NUMBER_ID:
+            PHONE_NUMBER_ID
+
+    });
+
+
+    console.log("--------------------------------");
 
 });
