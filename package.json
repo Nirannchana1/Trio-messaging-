@@ -1,12 +1,11 @@
 {
-  "name": "trio-messaging",
+  "name": "whatsapp-chatbot",
   "version": "1.0.0",
-  "description": "WhatsApp Webhook",
   "main": "app.js",
   "scripts": {
     "start": "node app.js"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.21.2"
   }
 }
