@@ -106,10 +106,12 @@ How can I help you today?`
             body: JSON.stringify(payload)
         });
 
-        const result = await response.json();
+    
+        const responseText = await response.text();
 
-        console.log("📥 Graph API Response:");
-        console.log(JSON.stringify(result, null, 2));
+console.log("Status:", response.status);
+console.log("Response:");
+console.log(responseText);
 
         if (!response.ok) {
             console.error("❌ WhatsApp API Error");
